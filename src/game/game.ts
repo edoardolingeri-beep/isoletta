@@ -18,7 +18,7 @@ import { Stage } from '../scene/stage';
 import { feedbackSettings, sfx, unlockAudio, vibrate } from '../ui/feedback';
 import { chips, fmt, Hud } from '../ui/hud';
 import { ICONS, resIcon } from '../ui/icons';
-import { buildingSheet, settingsModal, welcomeModal, zoneSheet } from '../ui/panels';
+import { buildingSheet, missionsSheet, settingsModal, welcomeModal, zoneSheet } from '../ui/panels';
 import { beauty, buildingRate, canAfford, computeOffline, give, inhabitants, laborRate, levelOf, pay, totalRate } from './economy';
 import { advanceQuest, currentQuest } from './quests';
 import { loadGame, saveGame, wipeSave, type GameState } from './state';
@@ -64,7 +64,7 @@ export class Game {
   private combo = 0;
   private lastGather = 0;
   private lastToast = 0;
-  private openSheet: { kind: 'building'; id: BuildingId } | { kind: 'zone'; id: ZoneId } | null = null;
+  private openSheet: { kind: 'building'; id: BuildingId } | { kind: 'zone'; id: ZoneId } | { kind: 'missions' } | null = null;
   private pointer: HTMLElement | null = null;
   private lastQuestIndex = -1;
 
@@ -78,6 +78,7 @@ export class Game {
     this.rig.onTap = (x, y) => this.onTap(x, y);
     this.hud = new Hud(uiRoot);
     this.hud.onQuestTap = () => this.onQuestTap();
+    this.hud.onMissions = () => this.openMissions();
     this.hud.onSettings = () => this.openSettings();
     this.hud.onSheetClose = () => (this.openSheet = null);
     this.particles = new Particles(this.stage.scene);
@@ -528,11 +529,36 @@ export class Game {
   }
 
   private spawnBoat(): void {
-    const b = new Boat(Math.floor(Math.random() * 1000), new THREE.Vector3(0, 0, -3));
+    // la rotta deve stare in acqua, lontana da terra, nebbia e molo
+    const all = ZONES.flatMap((z) => z.discs);
+    const dock = this.buildings.get('dock');
+    const dockEnd = dock ? dock.root.localToWorld(new THREE.Vector3(4.5, 0, 0)) : null;
+    const isWater = (x: number, z: number) =>
+      all.every((d) => Math.hypot(x - d.x, z - d.z) > d.r + 2) && (!dockEnd || Math.hypot(x - dockEnd.x, z - dockEnd.z) > 2.5);
+    const home = this.rig.home;
+    const b = new Boat(Math.floor(Math.random() * 1000), new THREE.Vector3(home.x, 0, home.z + 2), isWater);
     this.stage.scene.add(b.obj);
     this.boats.push(b);
     this.interact.set(b.obj, () => this.tipBoat(b));
-    const marker = this.hud.addAnchor(`<div class="bubble green">${resIcon('coin')}</div>`, () => b.obj.position.clone().setY(2.9), () => this.tipBoat(b), 4);
+    // la moneta sopra la barca resta sul bordo dello schermo quando la barca è fuori vista:
+    // toccandola lì la camera va alla barca
+    const marker = this.hud.addAnchor(
+      `<div class="bubble green">${resIcon('coin')}</div>`,
+      () => {
+        // la freccia compare solo quando la barca è a una distanza raggiungibile
+        const p = b.obj.position;
+        return Math.hypot(p.x - this.rig.home.x, p.z - this.rig.home.z) < 17 ? p.clone().setY(2.9) : null;
+      },
+      () => {
+        const m = this.boatMarkers.get(b);
+        if (m && this.hud.isOnEdge(m)) {
+          sfx('click');
+          this.focusOn(b.obj.position);
+        } else this.tipBoat(b);
+      },
+      4,
+      true,
+    );
     this.boatMarkers.set(b, marker);
   }
 
@@ -590,21 +616,47 @@ export class Game {
     }
   }
 
+  /** Pillola della missione: se è compiuta riscuote, altrimenti apre il menu missioni. */
   private onQuestTap(): void {
     const q = currentQuest(this.state);
-    if (!q) return;
-    if (q.done) {
-      give(this.state, q.def.reward);
-      const rect = this.hud.questRect();
-      const from = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      for (const r of RESOURCE_IDS) if ((q.def.reward[r] ?? 0) > 0) this.hud.fly(r, from, 5);
-      sfx('quest');
-      vibrate([10, 30, 10]);
-      advanceQuest(this.state);
-      saveGame(this.state);
-      this.refreshSlowUI(true);
-      return;
-    }
+    if (q?.done) this.claimQuest(this.hud.questRect());
+    else this.openMissions();
+  }
+
+  private openMissions(): void {
+    sfx('click');
+    this.openSheet = { kind: 'missions' };
+    this.renderMissionsSheet();
+  }
+
+  private renderMissionsSheet(): void {
+    this.hud.openSheet(missionsSheet(this.state), (card) => {
+      card.querySelector('[data-go]')?.addEventListener('click', () => {
+        this.hud.closeSheet();
+        this.goToQuest();
+      });
+      const claim = card.querySelector<HTMLElement>('[data-claim]');
+      claim?.addEventListener('click', () => this.claimQuest(claim.getBoundingClientRect()));
+    });
+  }
+
+  private claimQuest(rect: DOMRect): void {
+    const q = currentQuest(this.state);
+    if (!q?.done) return;
+    give(this.state, q.def.reward);
+    const from = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    for (const r of RESOURCE_IDS) if ((q.def.reward[r] ?? 0) > 0) this.hud.fly(r, from, 5);
+    sfx('quest');
+    vibrate([10, 30, 10]);
+    advanceQuest(this.state);
+    saveGame(this.state);
+    this.refreshSlowUI(true);
+  }
+
+  /** Porta la camera (o apre il pannello) dove serve per la missione corrente. */
+  private goToQuest(): void {
+    const q = currentQuest(this.state);
+    if (!q || q.done) return;
     sfx('click');
     const g = q.def.goal;
     if (g.kind === 'build') return this.openBuilding(g.building);
@@ -707,7 +759,7 @@ export class Game {
     const q = currentQuest(s);
     const isNew = this.lastQuestIndex !== s.quest.index && this.lastQuestIndex !== -1;
     this.lastQuestIndex = s.quest.index;
-    this.hud.setQuest(q ? { ...q, from: q.def.from, text: q.def.text, reward: q.def.reward } : null, isNew);
+    this.hud.setQuest(q ? { ...q, text: q.def.text } : null, isNew);
     if (isNew) sfx('pop', 0.8);
 
     // freccia-guida sulle prime missioni
@@ -719,7 +771,7 @@ export class Game {
         const goal = currentQuest(this.state)?.def.goal;
         const b = goal?.kind === 'build' ? 3.0 : goal?.kind === 'gather' && goal.resource === 'wood' ? 3.6 : 1.6;
         return p.clone().setY(p.y + b);
-      }, () => this.onQuestTap(), 8);
+      }, () => this.goToQuest(), 8);
     } else if (!showPointer && this.pointer) {
       this.hud.removeAnchor(this.pointer);
       this.pointer = null;
@@ -728,6 +780,7 @@ export class Game {
     // se il pannello aperto mostra costi, aggiorna i colori (solo se cambia qualcosa)
     if (this.openSheet && this.hud.sheetOpen) {
       if (this.openSheet.kind === 'building') this.renderBuildingSheet(this.openSheet.id);
+      else if (this.openSheet.kind === 'missions') this.renderMissionsSheet();
       else if (!this.state.zones.includes(this.openSheet.id)) this.renderZoneSheet(this.openSheet.id);
     }
   }

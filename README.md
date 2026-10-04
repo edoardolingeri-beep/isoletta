@@ -37,7 +37,10 @@ funziona anche in una sottocartella.
   toccale per avere una mancia.
 - Il gioco ha giorno e notte (finestre illuminate, lucciole, il faro che gira), pioggia (l'orto produce di più),
   e guadagni **offline** con il popup "Bentornato!".
-- In alto c'è sempre una **missione**: toccala per farti portare all'obiettivo, o per riscuotere il premio.
+- In alto c'è sempre la **missione** corrente in una pillola compatta: toccala per aprire il **menu missioni**
+  (fatte, in corso, prossime) con il pulsante "Vai"; quando è compiuta, toccala per riscuotere il premio.
+- Quando passa una **barca** compare una moneta sopra di lei; se la barca è fuori vista la moneta resta sul bordo
+  dello schermo con una freccia: toccala e la camera ti porta alla barca.
 
 Dalla console del browser: `game.cheat(1000)` aggiunge risorse per i test.
 Da Impostazioni (ingranaggio) si spengono suoni e vibrazione o si ricomincia da capo.

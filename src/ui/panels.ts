@@ -4,6 +4,8 @@ import { RESOURCE_IDS, type Bundle, type ResourceId } from '../config/resources'
 import type { ZoneDef } from '../config/zones';
 import { canAfford, coinMultiplier, levelOf } from '../game/economy';
 import type { GameState } from '../game/state';
+import { QUESTS } from '../config/quests';
+import { currentQuest } from '../game/quests';
 import { chips, fmt, fmtTime } from './hud';
 import { ICONS, resIcon } from './icons';
 
@@ -101,4 +103,36 @@ export function settingsModal(state: GameState): string {
     <div style="height:10px"></div>
     <button class="big-btn tap outline red" data-reset>Ricomincia da capo</button>
     <p class="hint">Un dito: sposta la vista (da lontano torna al centro, da vicino resta dove la lasci) &middot; due dita: pizzica per lo zoom e gira le dita per ruotare l'isola &middot; mouse: tasto destro per ruotare</p>`;
+}
+
+/** Elenco di tutte le missioni: fatte, in corso, prossime. */
+export function missionsSheet(state: GameState): string {
+  const q = currentQuest(state);
+  const idx = state.quest.index;
+  const items = QUESTS.map((def, i) => {
+    const reward = chips(def.reward);
+    if (i < idx) {
+      return `<div class="m-item done"><div class="m-ico">${ICONS.check}</div><div class="m-body"><div class="m-text">${def.text}</div></div></div>`;
+    }
+    if (i === idx && q) {
+      const pct = Math.round((q.current / q.target) * 100);
+      const btn = q.done
+        ? `<button class="m-btn green outline-sm tap" data-claim>Riscuoti</button>`
+        : `<button class="m-btn outline-sm tap" data-go>Vai</button>`;
+      return `<div class="m-item current ${q.done ? 'ready' : ''}">
+        <div class="m-ico">${q.done ? ICONS.star : ICONS.scroll}</div>
+        <div class="m-body">
+          <div class="m-from">Missione di ${def.from}</div>
+          <div class="m-text">${def.text}</div>
+          <div class="m-bar"><i style="width:${pct}%"></i></div>
+          <div class="sheet-row" style="margin-top:5px"><span style="font-size:12px;font-weight:600">${Math.floor(q.current)}/${q.target} · premio</span>${reward}</div>
+        </div>
+        ${btn}
+      </div>`;
+    }
+    return `<div class="m-item locked"><div class="m-ico">${ICONS.lock}</div><div class="m-body"><div class="m-text">${def.text}</div></div>${reward}</div>`;
+  });
+  const done = Math.min(idx, QUESTS.length);
+  return `${head('Missioni', `<span class="outline-sm" style="font-size:14px">${done}/${QUESTS.length}</span>`)}
+    <div class="missions">${items.join('')}${q ? '' : '<p class="sheet-desc" style="text-align:center">Hai completato tutte le missioni. Nuove zone in arrivo!</p>'}</div>`;
 }

@@ -33,7 +33,7 @@ const h = (html: string): HTMLElement => {
   return t.content.firstElementChild as HTMLElement;
 };
 
-interface Anchor { el: HTMLElement; pos: () => THREE.Vector3 | null; lift: number }
+interface Anchor { el: HTMLElement; pos: () => THREE.Vector3 | null; lift: number; edge: boolean }
 interface Floater { el: HTMLElement; pos: THREE.Vector3; t: number }
 
 export class Hud {
@@ -54,6 +54,8 @@ export class Hud {
   private tmp = new THREE.Vector3();
   onQuestTap: () => void = () => {};
   onSettings: () => void = () => {};
+  onMissions: () => void = () => {};
+  private missionsDot!: HTMLElement;
   onSheetClose: () => void = () => {};
 
   constructor(root: HTMLElement) {
@@ -64,14 +66,15 @@ export class Hud {
     const top = root.appendChild(
       h(`<div class="top">
         <div class="top-row">
-          <div class="badge-star">${ICONS.star}<b class="outline">0</b></div>
+          <div class="badge-star">${ICONS.star}<b class="outline-sm">0</b></div>
           <div class="island-info">
-            <div class="island-name outline">ISOLETTA</div>
+            <div class="island-name outline-sm">ISOLETTA</div>
             <div class="island-sub"><span class="mini-pill" data-people>${ICONS.people}<span>1</span></span></div>
           </div>
           <div class="spacer"></div>
           <div class="sky-icon">${ICONS.sun}</div>
-          <div class="round-btn tap" data-settings>${ICONS.gear}</div>
+          <div class="round-btn tap" data-missions aria-label="Missioni">${ICONS.scroll}<div class="dot" hidden>!</div></div>
+          <div class="round-btn tap" data-settings aria-label="Impostazioni">${ICONS.gear}</div>
         </div>
         <div class="res-row"></div>
         <div class="quest tap"></div>
@@ -81,9 +84,11 @@ export class Hud {
     this.peopleEl = top.querySelector('[data-people] span')!;
     this.skyEl = top.querySelector('.sky-icon')!;
     top.querySelector('[data-settings]')!.addEventListener('click', () => this.onSettings());
+    top.querySelector('[data-missions]')!.addEventListener('click', () => this.onMissions());
+    this.missionsDot = top.querySelector('[data-missions] .dot')!;
     const row = top.querySelector('.res-row')!;
     for (const r of RESOURCE_IDS) {
-      const box = row.appendChild(h(`<div class="res"><div class="ico">${resIcon(r)}</div><span class="outline">0</span><div class="rate"></div></div>`));
+      const box = row.appendChild(h(`<div class="res"><div class="ico">${resIcon(r)}</div><span class="outline-sm">0</span><div class="rate"></div></div>`));
       this.resEls[r] = { box, num: box.querySelector('span')!, rate: box.querySelector('.rate')! };
       this.shown[r] = 0;
     }
@@ -164,33 +169,29 @@ export class Hud {
 
   // ------------------------------------------------------------ obiettivo
 
-  setQuest(q: { from: string; text: string; current: number; target: number; done: boolean; reward: Bundle } | null, isNew = false): void {
+  /** Pillola compatta con la missione corrente (il dettaglio è nel menu missioni). */
+  setQuest(q: { text: string; current: number; target: number; done: boolean } | null, isNew = false): void {
     const el = this.questEl;
+    this.missionsDot.hidden = !q?.done;
     if (!q) {
       el.className = 'quest tap';
-      el.innerHTML = `<div class="q-ico">${ICONS.heart}</div><div class="q-body"><div class="q-from">Per ora è tutto!</div><div class="q-text">La tua isola è splendida. Nuove zone in arrivo…</div></div>`;
+      el.dataset.key = '';
+      el.innerHTML = `<div class="q-ico">${ICONS.heart}</div><div class="q-text">Missioni finite, per ora!</div>`;
       return;
     }
-    const pct = Math.round((q.current / q.target) * 100);
     const key = `${q.text}|${q.done}`;
     if (el.dataset.key !== key) {
       el.dataset.key = key;
-      const rewardRes = RESOURCE_IDS.find((r) => (q.reward[r] ?? 0) > 0) ?? 'coin';
       el.innerHTML = `
-        <div class="q-ico">${q.done ? ICONS.star : ICONS.people}</div>
-        <div class="q-body">
-          <div class="q-from">${q.done ? 'Missione compiuta!' : `Missione di ${q.from}`}</div>
-          <div class="q-text">${q.text}</div>
-          <div class="q-bar"><i></i><span></span></div>
-        </div>
-        <div class="q-reward">${resIcon(rewardRes)}<span>+${fmt(q.reward[rewardRes] ?? 0)}</span></div>
-        <div class="q-claim outline">Riscuoti</div>
+        <div class="q-ico">${q.done ? ICONS.star : ICONS.scroll}</div>
+        <div class="q-text">${q.text}</div>
+        <div class="q-count"><i></i><span></span></div>
+        <div class="q-claim outline-sm">Riscuoti</div>
         <div class="dot">!</div>`;
-      if (q.done) (el.querySelector('.q-reward') as HTMLElement).style.display = 'none';
     }
     el.classList.toggle('done', q.done);
-    (el.querySelector('.q-bar i') as HTMLElement).style.width = `${pct}%`;
-    (el.querySelector('.q-bar span') as HTMLElement).textContent = `${Math.floor(q.current)}/${q.target}`;
+    (el.querySelector('.q-count i') as HTMLElement).style.width = `${Math.round((q.current / q.target) * 100)}%`;
+    (el.querySelector('.q-count span') as HTMLElement).textContent = `${Math.floor(q.current)}/${q.target}`;
     if (isNew) {
       el.classList.remove('new');
       void el.offsetWidth;
@@ -204,7 +205,11 @@ export class Hud {
 
   // ------------------------------------------------------------ marker ancorati al mondo
 
-  addAnchor(html: string, pos: () => THREE.Vector3 | null, onTap?: () => void, lift = 0): HTMLElement {
+  /**
+   * Elemento DOM che segue un punto 3D. Con `edge` resta incollato al bordo dello
+   * schermo (con una freccia) quando il punto è fuori vista.
+   */
+  addAnchor(html: string, pos: () => THREE.Vector3 | null, onTap?: () => void, lift = 0, edge = false): HTMLElement {
     const el = this.markers.appendChild(h(`<div class="marker"><div class="marker-inner">${html}</div></div>`));
     if (onTap) {
       // l'area toccabile è il contenuto visibile, non il box (vuoto) del marker
@@ -215,7 +220,8 @@ export class Hud {
         onTap();
       });
     }
-    this.anchors.add({ el, pos, lift });
+    if (edge) el.firstElementChild!.insertAdjacentHTML('beforeend', '<div class="edge-arrow"></div>');
+    this.anchors.add({ el, pos, lift, edge });
     return el;
   }
 
@@ -265,6 +271,40 @@ export class Hud {
     return { x: (this.tmp.x * 0.5 + 0.5) * innerWidth, y: (-this.tmp.y * 0.5 + 0.5) * innerHeight, visible: this.tmp.z < 1 };
   }
 
+  /** true se il marker è attualmente incollato al bordo (oggetto fuori schermo). */
+  isOnEdge(el: HTMLElement): boolean {
+    return el.classList.contains('edge');
+  }
+
+  private placeOnEdge(a: Anchor, s: { x: number; y: number; visible: boolean }): void {
+    let { x, y } = s;
+    const w = innerWidth, hgt = innerHeight;
+    if (!s.visible) {
+      // dietro la camera la proiezione è capovolta
+      x = w - x;
+      y = hgt - y;
+    }
+    const top = (this.questEl.getBoundingClientRect().bottom || 120) + 34;
+    const m = 30;
+    const inside = s.visible && x > m && x < w - m && y - a.lift > top && y < hgt - m;
+    a.el.style.display = '';
+    a.el.classList.toggle('edge', !inside);
+    if (inside) {
+      a.el.style.transform = `translate3d(${x.toFixed(1)}px, ${(y - a.lift).toFixed(1)}px, 0)`;
+      return;
+    }
+    // punto sul bordo lungo la direzione dal centro dello schermo
+    const cx = w / 2, cy = (top + hgt) / 2;
+    const dx = x - cx, dy = y - cy;
+    const kx = dx !== 0 ? (w / 2 - m) / Math.abs(dx) : Infinity;
+    const ky = dy !== 0 ? ((dy < 0 ? cy - top : hgt - m - cy)) / Math.abs(dy) : Infinity;
+    const k = Math.min(kx, ky);
+    const ex = cx + dx * k, ey = cy + dy * k;
+    a.el.style.transform = `translate3d(${ex.toFixed(1)}px, ${ey.toFixed(1)}px, 0)`;
+    const arrow = a.el.querySelector('.edge-arrow') as HTMLElement | null;
+    if (arrow) arrow.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+  }
+
   /** Riposiziona marker e numeri volanti; da chiamare a ogni frame. */
   updateWorldUI(camera: THREE.Camera, dt: number): void {
     for (const a of this.anchors) {
@@ -274,6 +314,10 @@ export class Hud {
         continue;
       }
       const s = this.worldToScreen(p, camera);
+      if (a.edge) {
+        this.placeOnEdge(a, s);
+        continue;
+      }
       a.el.style.display = s.visible ? '' : 'none';
       a.el.style.transform = `translate3d(${s.x.toFixed(1)}px, ${(s.y - a.lift).toFixed(1)}px, 0)`;
     }

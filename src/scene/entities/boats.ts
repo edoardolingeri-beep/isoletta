@@ -12,15 +12,31 @@ export class Boat {
   hop = 0;
   done = false;
 
-  constructor(seed: number, center: THREE.Vector3) {
+  /**
+   * La barca attraversa la scena in linea retta passando vicino all'isola.
+   * `isWater` scarta le rotte che toccherebbero terra o nebbia.
+   */
+  constructor(seed: number, center: THREE.Vector3, isWater: (x: number, z: number) => boolean) {
     this.obj = createModel('vehicle.boat', seed);
-    const dirA = Math.random() * Math.PI * 2;
-    const dir = new THREE.Vector3(Math.cos(dirA), 0, Math.sin(dirA));
-    const perp = new THREE.Vector3(-dir.z, 0, dir.x);
-    const off = (13 + Math.random() * 2.5) * (Math.random() < 0.5 ? -1 : 1);
-    this.from.copy(center).addScaledVector(perp, off).addScaledVector(dir, -30);
-    this.to.copy(center).addScaledVector(perp, off).addScaledVector(dir, 30);
-    this.dur = 60 / (2 + Math.random() * 0.8);
+    let dirA = 0;
+    const dir = new THREE.Vector3(), perp = new THREE.Vector3();
+    // prova rotte sempre più larghe finché una resta tutta in acqua
+    for (let tries = 0; tries < 40; tries++) {
+      dirA = Math.random() * Math.PI * 2;
+      dir.set(Math.cos(dirA), 0, Math.sin(dirA));
+      perp.set(-dir.z, 0, dir.x);
+      const off = (8.5 + tries * 0.2 + Math.random() * 2) * (Math.random() < 0.5 ? -1 : 1);
+      this.from.copy(center).addScaledVector(perp, off).addScaledVector(dir, -28);
+      this.to.copy(center).addScaledVector(perp, off).addScaledVector(dir, 28);
+      let ok = true;
+      for (let s = 0; s <= 40 && ok; s++) {
+        const p = new THREE.Vector3().lerpVectors(this.from, this.to, s / 40);
+        ok = isWater(p.x, p.z);
+      }
+      if (ok) break;
+    }
+    // più lente di prima: c'è tempo per toccarle
+    this.dur = 56 / (1.4 + Math.random() * 0.5);
     this.obj.rotation.y = -dirA; // il modello guarda verso +x
     this.obj.position.copy(this.from);
   }

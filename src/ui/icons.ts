@@ -39,6 +39,7 @@ export const ICONS = {
   sun: svg(`<circle cx="32" cy="32" r="13" fill="#ffd23f" ${OUT}/><g ${OUT}><path d="M32 4v8M32 52v8M4 32h8M52 32h8M12 12l6 6M46 46l6 6M12 52l6-6M46 18l6-6"/></g>`),
   moon: svg(`<path d="M40 6 A 26 26 0 1 0 58 42 A 20 20 0 1 1 40 6 Z" fill="#fff1a8" ${OUT}/>`),
   rain: svg(`<path d="M16 38 a12 12 0 0 1 4-23 a16 16 0 0 1 30 5 a10 10 0 0 1-2 18 Z" fill="#e6f0ff" ${OUT}/><g stroke="#4aa8ff" stroke-width="4" stroke-linecap="round"><path d="M20 46l-3 8M32 46l-3 8M44 46l-3 8"/></g>`),
+  scroll: svg(`<rect x="12" y="8" width="40" height="48" rx="8" fill="#fff7ea" ${OUT}/><g stroke="#7b45c9" stroke-width="4" stroke-linecap="round"><path d="M22 22h20M22 32h20M22 42h12"/></g><circle cx="46" cy="44" r="9" fill="#5fd34a" ${OUT}/>`),
   check: svg(`<path d="M10 34 L 26 50 L 54 16" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`),
   close: svg(`<path d="M16 16 L 48 48 M 48 16 L 16 48" stroke="#fff" stroke-width="9" stroke-linecap="round"/>`),
   heart: svg(`<path d="M32 56 C 8 40 4 26 12 16 C 20 8 30 12 32 20 C 34 12 44 8 52 16 C 60 26 56 40 32 56 Z" fill="#ff4d6d" ${OUT}/>`),
