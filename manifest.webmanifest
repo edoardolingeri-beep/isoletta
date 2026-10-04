@@ -1,0 +1,10 @@
+{
+  "name": "Isoletta",
+  "short_name": "Isoletta",
+  "start_url": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#8fe6f5",
+  "theme_color": "#8fe6f5",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
