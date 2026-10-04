@@ -1,6 +1,7 @@
 // Camera "diorama":
 // - un dito sposta la vista; vicino al centro ci si muove liberi, più ci si
-//   allontana più "tira", e lasciando il dito lontano una molla riporta l'isola al centro
+//   allontana più "tira", e lasciando il dito lontano una molla riporta l'isola al centro.
+//   Se si è zoomati la molla è spenta: ci si muove liberi per esplorare da vicino.
 // - due dita: pizzico per lo zoom, rotazione delle dita per girare l'isola
 // - mouse: tasto sinistro sposta, tasto destro (o Shift) ruota, rotellina zoomma
 // Un tocco breve = tap.
@@ -22,6 +23,11 @@ export class CameraRig {
    * riporta la vista al centro.
    */
   home = { x: 0, z: -2, free: 3.5, max: 9 };
+  /**
+   * Sotto questa distanza la vista è "zoomata": niente molla, ci si muove liberi
+   * (entro `home.max`). Tornando indietro con lo zoom la molla riprende.
+   */
+  zoomedBelow = 27;
   onTap: (x: number, y: number) => void = () => {};
   /** true durante un trascinamento (per non aprire pannelli per sbaglio). */
   dragging = false;
@@ -36,6 +42,7 @@ export class CameraRig {
   private shakeAmt = 0;
   private rotateButton = false;
   private lastMove = 0;
+  private wasZoomed = false;
 
   constructor(private camera: THREE.PerspectiveCamera, private el: HTMLElement) {
     el.addEventListener('pointerdown', this.down);
@@ -112,7 +119,7 @@ export class CameraRig {
       setTimeout(() => (this.dragging = false), 0);
       // dito fermo prima di alzarlo: niente lancio
       if (performance.now() - this.lastMove > 80) this.panVel.set(0, 0);
-      if (this.distFromHome() > this.home.free) this.springing = true;
+      if (!this.zoomed && this.distFromHome() > this.home.free) this.springing = true;
     }
     if (this.ptrs.size === 1) {
       // da due dita a uno: riparte senza saltare
@@ -128,6 +135,10 @@ export class CameraRig {
     this.distance = THREE.MathUtils.clamp(this.distance * (1 + e.deltaY * 0.0012), this.minDist, this.maxDist);
   };
 
+  get zoomed(): boolean {
+    return this.distance < this.zoomedBelow;
+  }
+
   private distFromHome(): number {
     return Math.hypot(this.target.x - this.home.x, this.target.z - this.home.z);
   }
@@ -142,7 +153,14 @@ export class CameraRig {
     const { x: hx, z: hz, free, max } = this.home;
     const nx = this.target.x + mx - hx, nz = this.target.z + mz - hz;
     const nd = Math.hypot(nx, nz);
-    if (nd > free && nd > this.distFromHome()) {
+    if (this.zoomed) {
+      // zoomati: movimento libero, solo un limite fisso per non perdersi in mare
+      if (nd > max) {
+        const back = (nd - max) / nd;
+        mx -= nx * back;
+        mz -= nz * back;
+      }
+    } else if (nd > free && nd > this.distFromHome()) {
       // ci si sta allontanando oltre la zona libera: effetto elastico
       const f = Math.max(0.08, 1 - (nd - free) / (max - free));
       mx *= f;
@@ -184,11 +202,24 @@ export class CameraRig {
         this.target.x += this.panVel.x * dt;
         this.target.z += this.panVel.y * dt;
         this.panVel.multiplyScalar(Math.pow(0.004, dt));
-        if (this.distFromHome() > this.home.free) {
+        if (this.zoomed) {
+          // zoomati: l'inerzia si ferma al bordo
+          const { x: hx, z: hz, max } = this.home;
+          const vx = this.target.x - hx, vz = this.target.z - hz, d = Math.hypot(vx, vz);
+          if (d > max) {
+            this.target.x = hx + (vx / d) * max;
+            this.target.z = hz + (vz / d) * max;
+            this.panVel.set(0, 0);
+          }
+        } else if (this.distFromHome() > this.home.free) {
           this.springing = true;
           this.panVel.multiplyScalar(Math.pow(0.0001, dt));
         }
       }
+      // appena si torna indietro con lo zoom lontano dal centro, la molla riprende
+      // (solo al passaggio zoomato → normale, così non annulla le inquadrature automatiche)
+      if (this.wasZoomed && !this.zoomed && this.distFromHome() > this.home.free) this.springing = true;
+      if (this.zoomed) this.springing = false;
       // molla: riporta la vista al centro
       if (this.springing) {
         const k = 1 - Math.exp(-dt * 4.5);
@@ -197,6 +228,7 @@ export class CameraRig {
         if (this.distFromHome() < 0.05) this.springing = false;
       }
     }
+    this.wasZoomed = this.zoomed;
     const c = this.camera;
     const horiz = Math.cos(this.elevation) * this.distance;
     c.position.set(

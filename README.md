@@ -26,7 +26,7 @@ funziona anche in una sottocartella.
 
 ## Come si gioca
 
-- **Un dito**: sposta la vista (più ti allontani dal centro più "tira", e lasciando una molla riporta l'isola al centro) ·
+- **Un dito**: sposta la vista (più ti allontani dal centro più "tira", e lasciando una molla riporta l'isola al centro; da zoomati la molla è spenta e ci si muove liberi) ·
   **due dita**: pizzico per lo zoom, rotazione delle dita per girare l'isola · desktop: tasto sinistro sposta, destro ruota, rotellina zoomma.
 - Tocca **palme e alberi** (legna), il **banco di pesci** con la boa (pesce; quando lo esaurisci si sposta in un altro punto della costa) e le **conchiglie** sulla spiaggia.
   Ogni oggetto ha poche cariche e poi ricresce.
