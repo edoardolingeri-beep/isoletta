@@ -100,5 +100,5 @@ export function settingsModal(state: GameState): string {
     <div class="toggle-row"><span>Vibrazione</span>${sw(state.settings.vibration, 'vibration')}</div>
     <div style="height:10px"></div>
     <button class="big-btn tap outline red" data-reset>Ricomincia da capo</button>
-    <p class="hint">Trascina per ruotare l'isola · pizzica con due dita per lo zoom · due dita per spostarti</p>`;
+    <p class="hint">Trascina per ruotare l'isola &middot; pizzica con due dita per lo zoom &middot; due dita per spostarti</p>`;
 }
