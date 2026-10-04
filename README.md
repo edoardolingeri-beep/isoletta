@@ -12,6 +12,12 @@ npm run build      # controllo tipi + build in dist/
 npm run preview    # serve la build in dist/
 ```
 
+### Giocarlo online
+
+La versione pubblicata è su **https://edoardolingeri-beep.github.io/isoletta/**.
+A ogni push su `main` l'automazione `.github/workflows/pages.yml` ricompila il gioco e aggiorna il branch `gh-pages`.
+(Prima volta: in GitHub → Settings → Pages, "Source" = *Deploy from a branch*, branch `gh-pages`, cartella `/ (root)`.)
+
 ### Provarlo sul telefono
 
 1. Computer e telefono sulla **stessa rete Wi-Fi**.
