@@ -118,8 +118,8 @@ export class Game {
     this.stage.setLand(this.unlockedDiscs());
     this.placeFireflies();
     this.syncVillagers(false);
-    // con più zone sbloccate la camera inquadra il centro dell'isola
-    if (this.state.zones.includes('forest')) this.rig.target.set(0, 0, -3.5);
+    this.updateCameraHome(false);
+
   }
 
   private addFog(rt: ZoneRuntime): void {
@@ -162,7 +162,8 @@ export class Game {
       content.add(ga.obj);
       this.gatherables.push(ga);
       this.interact.set(ga.obj, (hit) => this.gather(ga, hit));
-      this.obstacles.push(new THREE.Vector3(g.x, 0, g.z));
+      if (g.type === 'fish') this.placeFishSpot(ga);
+      else this.obstacles.push(new THREE.Vector3(g.x, 0, g.z));
       items.push(ga.obj);
     }
 
@@ -212,6 +213,58 @@ export class Game {
     }
     s.obj.visible = false;
     s.respawnIn = 3;
+  }
+
+  /** Mette il banco di pesci in un punto casuale del mare vicino alla costa (lontano dal molo e dalla nebbia). */
+  private placeFishSpot(g: Gatherable): void {
+    const land = this.unlockedDiscs();
+    const fog = ZONES.filter((z) => !this.state.zones.includes(z.id)).flatMap((z) => z.discs);
+    const dock = this.buildings.get('dock');
+    const dockPts = dock ? [0, 1.5, 3, 4.2].map((x) => dock.root.localToWorld(new THREE.Vector3(x, 0, 0))) : [];
+    const prev = g.obj.position.clone();
+    for (let tries = 0; tries < 80; tries++) {
+      const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 10;
+      const x = Math.cos(a) * r, z = -2 + Math.sin(a) * r;
+      const shore = Math.min(...land.map((d) => Math.hypot(x - d.x, z - d.z) - d.r));
+      if (shore < 1.1 || shore > 2.6) continue;
+      if (fog.some((d) => Math.hypot(x - d.x, z - d.z) < d.r + 1.2)) continue;
+      if (dockPts.some((p) => Math.hypot(x - p.x, z - p.z) < 2.2)) continue;
+      if (tries < 60 && Math.hypot(x - prev.x, z - prev.z) < 4) continue;
+      g.obj.position.set(x, 0, z);
+      break;
+    }
+    g.refill();
+    g.obj.visible = true;
+  }
+
+  /** Il centro a cui la vista torna "a molla" segue le zone sbloccate. */
+  private updateCameraHome(animated: boolean): void {
+    const discs = this.unlockedDiscs();
+    let sx = 0, sz = 0, sw = 0;
+    for (const d of discs) {
+      const w = d.r * d.r;
+      sx += d.x * w;
+      sz += d.z * w;
+      sw += w;
+    }
+    const home = this.rig.home;
+    home.x = sx / sw;
+    // un po' più a nord del baricentro, così l'isola resta sotto la barra in alto
+    home.z = sz / sw - 2;
+    const spread = Math.max(...discs.map((d) => Math.hypot(d.x - home.x, d.z - home.z) + d.r));
+    home.free = Math.max(4, spread * 0.5);
+    home.max = home.free + 6;
+    if (!animated) this.rig.target.set(home.x, 0, home.z);
+  }
+
+  /** Dopo un'espansione il banco di pesci non deve restare sotto la terra nuova. */
+  private placeFishSpotsAway(): void {
+    const land = this.unlockedDiscs();
+    for (const g of this.gatherables) {
+      if (g.type !== 'fish') continue;
+      const p = g.obj.position;
+      if (land.some((d) => Math.hypot(p.x - d.x, p.z - d.z) < d.r + 0.8)) this.placeFishSpot(g);
+    }
   }
 
   private placeFireflies(): void {
@@ -306,6 +359,16 @@ export class Game {
         squash(g.obj, 0.3, 0.5);
         this.particles.burst(g.obj.position.clone().setY(0.2), ['#ffffff', '#bff3ff', '#4aa8ff'], 14, { speed: 2, up: 5, size: 0.8 });
         sfx('splash', pitch);
+        if (g.depleted) {
+          // i pesci scappano: il banco si immerge e riappare altrove
+          const obj = g.obj;
+          popOut(obj, 0.45, () => {
+            obj.visible = false;
+            obj.scale.setScalar(obj.userData.baseScale ?? 1);
+          });
+          g.respawnIn = g.def.respawnSec ?? 6;
+          this.toastThrottled('I pesci si sono spostati: cercali lungo la costa!');
+        }
         break;
       case 'shell': {
         this.particles.burst(g.obj.position.clone().setY(0.6), ['#ff86c0', '#ffd23f', '#ffffff'], 12, { speed: 2, up: 4, size: 0.7 });
@@ -445,6 +508,8 @@ export class Game {
     this.populateZone(rt, true);
     this.stage.setLand(this.unlockedDiscs());
     this.placeFireflies();
+    this.updateCameraHome(true);
+    this.placeFishSpotsAway();
     this.hud.floatText(new THREE.Vector3(lx, 3, lz), `${rt.def.name}!`, '#ffd23f');
     saveGame(this.state);
     this.refreshSlowUI(true);
@@ -705,12 +770,15 @@ export class Game {
     // oggetti raccoglibili
     for (const g of this.gatherables) {
       g.update(dt, this.time);
-      if (g.type === 'shell' && !g.obj.visible && g.respawnIn > 0) {
+      if (g.def.respawnSec && !g.obj.visible && g.respawnIn > 0) {
         g.respawnIn -= dt;
         if (g.respawnIn <= 0) {
-          const rt = this.zones.get(g.zone as ZoneId)!;
-          this.placeShell(g, rt);
-          if (g.obj.visible) g.appear();
+          if (g.type === 'fish') this.placeFishSpot(g);
+          else this.placeShell(g, this.zones.get(g.zone as ZoneId)!);
+          if (g.obj.visible) {
+            g.appear();
+            if (g.type === 'fish') this.particles.burst(g.obj.position.clone().setY(0.3), ['#ffffff', '#bff3ff'], 10, { speed: 1.5, up: 4, size: 0.7 });
+          }
         }
       }
     }

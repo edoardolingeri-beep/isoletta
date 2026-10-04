@@ -26,8 +26,9 @@ funziona anche in una sottocartella.
 
 ## Come si gioca
 
-- **Un dito**: ruota l'isola · **due dita**: zoom (pinch) e spostamento · desktop: rotellina e tasto destro.
-- Tocca **palme e alberi** (legna), il **punto di pesca** con la boa (pesce) e le **conchiglie** sulla spiaggia.
+- **Un dito**: sposta la vista (più ti allontani dal centro più "tira", e lasciando una molla riporta l'isola al centro) ·
+  **due dita**: pizzico per lo zoom, rotazione delle dita per girare l'isola · desktop: tasto sinistro sposta, destro ruota, rotellina zoomma.
+- Tocca **palme e alberi** (legna), il **banco di pesci** con la boa (pesce; quando lo esaurisci si sposta in un altro punto della costa) e le **conchiglie** sulla spiaggia.
   Ogni oggetto ha poche cariche e poi ricresce.
 - Tocca i **lotti** (bolla "+") per costruire Capanna, Orto, Molo e, nella foresta, il Faro. Ogni edificio
   ha 3 livelli e cambia aspetto. Una bolla verde con "!" vuol dire che puoi permettertelo.

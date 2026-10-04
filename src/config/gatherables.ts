@@ -19,6 +19,7 @@ export interface GatherableDef {
 export const GATHERABLES: Record<GatherableId, GatherableDef> = {
   palm: { resource: 'wood', amount: 1, charges: 5, regenSec: 3, model: 'nature.palm' },
   tree: { resource: 'wood', amount: 2, charges: 4, regenSec: 4, model: 'nature.tree' },
-  fish: { resource: 'fish', amount: 1, charges: 5, regenSec: 3, model: 'nature.fishspot' },
+  // il banco di pesci, una volta esaurito, si immerge e riappare in un altro punto del mare
+  fish: { resource: 'fish', amount: 1, charges: 5, regenSec: 3, respawnSec: 6, model: 'nature.fishspot' },
   shell: { resource: 'shell', amount: 1, charges: 1, regenSec: 0, respawnSec: 12, model: 'nature.shell' },
 };

@@ -33,6 +33,14 @@ export class Gatherable {
     return this.def.amount;
   }
 
+  /** Ricarica completa (es. quando riappare altrove). */
+  refill(): void {
+    const was = this.charges;
+    this.charges = this.def.charges;
+    this.regen = 0;
+    if (was === 0) this.setDepletedLook(false);
+  }
+
   /** Frazione di ricarica per il prossimo tocco (0..1). */
   get regenProgress(): number {
     return this.def.regenSec > 0 ? this.regen / this.def.regenSec : 0;
